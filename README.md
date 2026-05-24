@@ -213,7 +213,3 @@ Quick summary:
 - 5 high issues (Cron scheduler missing, WS reconnection, typing indicator bug)
 - 8 medium issues (duplicate types, DB connections, error handling)
 - 10 low issues (security defaults, TS strict, unused imports)
-
-## License
-
-MIT © 2026 Meluna
