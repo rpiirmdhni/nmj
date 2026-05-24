@@ -19,7 +19,10 @@
       }
     ],
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./app/*"],
+      "@nmj/shared/*": ["./packages/shared/src/*"],
+      "@nmj/adapters/*": ["./packages/adapters/src/*"],
+      "@nmj/db/*": ["./packages/db/src/*"]
     }
   },
   "include": [
@@ -30,5 +33,5 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "packages", "server", "backend"]
 }

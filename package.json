@@ -1,36 +1,28 @@
 {
   "name": "nmj-dashboard",
   "version": "0.1.0",
-  "description": "Nineteen Million (AI) Jobs — Open Source AI Agent Management Dashboard",
   "private": false,
   "license": "MIT",
   "author": "Meluna",
   "repository": {
     "type": "git",
-    "url": "https://github.com/meluna/nmj-dashboard.git"
+    "url": "https://github.com/rpiirmdhni/nmj.git"
   },
-  "keywords": [
-    "ai-agents",
-    "dashboard",
-    "multi-agent",
-    "claude-code",
-    "codex",
-    "opencode",
-    "hermes",
-    "openclaw",
-    "nextjs",
-    "react",
-    "typescript"
+  "workspaces": [
+    "packages/*",
+    "server",
+    "app"
   ],
   "scripts": {
     "dev": "next dev -p 4000",
     "build": "next build",
     "start": "next start -p 4000",
     "lint": "eslint",
-    "backend": "cd backend && npx tsx src/server.ts",
+    "server": "cd server && npx tsx src/server.ts",
     "dev:all": "bash scripts/nmj.sh start",
     "stop": "bash scripts/nmj.sh stop",
-    "status": "bash scripts/nmj.sh status"
+    "status": "bash scripts/nmj.sh status",
+    "db:seed": "cd server && npx tsx ../../packages/db/src/database.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",

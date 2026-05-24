@@ -1,0 +1,11 @@
+{
+  "name": "@nmj/shared",
+  "version": "0.1.0",
+  "private": true,
+  "main": "src/types.ts",
+  "types": "src/types.ts",
+  "exports": {
+    "./types": "./src/types.ts",
+    "./constants": "./src/constants.ts"
+  }
+}

@@ -7,7 +7,8 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 FRONTEND_DIR="$PROJECT_DIR"
-BACKEND_DIR="$PROJECT_DIR/backend"
+BACKEND_DIR="$PROJECT_DIR/server"
+DB_DIR="$PROJECT_DIR/packages/db"
 
 # Colors
 RED='\033[0;31m'
@@ -38,11 +39,11 @@ check_deps() {
         cd "$BACKEND_DIR" && npm install
     fi
 
-    mkdir -p "$BACKEND_DIR/data"
+    mkdir -p "$DB_DIR/data"
 
-    if [ ! -f "$BACKEND_DIR/data/nmj.db" ]; then
+    if [ ! -f "$DB_DIR/data/nmj.db" ]; then
         log "Seeding database..."
-        cd "$BACKEND_DIR" && npx tsx src/database.ts
+        cd "$BACKEND_DIR" && npx tsx "$DB_DIR/src/database.ts"
     fi
 }
 
@@ -157,7 +158,7 @@ case "$ACTION" in
     db:seed)
         log "Seeding database..."
         cd "$BACKEND_DIR"
-        npx tsx src/database.ts
+        npx tsx "$DB_DIR/src/database.ts"
         ok "Database seeded!"
         ;;
 
@@ -165,9 +166,9 @@ case "$ACTION" in
         warn "This will delete all data. Continue? [y/N]"
         read -r confirm
         if [ "$confirm" = "y" ] || [ "$confirm" = "Y" ]; then
-            rm -f "$BACKEND_DIR/data/nmj.db" "$BACKEND_DIR/data/nmj.db-shm" "$BACKEND_DIR/data/nmj.db-wal"
+            rm -f "$DB_DIR/data/nmj.db" "$DB_DIR/data/nmj.db-shm" "$DB_DIR/data/nmj.db-wal"
             cd "$BACKEND_DIR"
-            npx tsx src/database.ts
+            npx tsx "$DB_DIR/src/database.ts"
             ok "Database reset and seeded!"
         else
             log "Cancelled."

@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "commonjs",
+    "lib": ["ES2022"],
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "declaration": false,
+    "sourceMap": true,
+    "baseUrl": "../..",
+    "paths": {
+      "@nmj/shared/*": ["packages/shared/src/*"],
+      "@nmj/adapters/*": ["packages/adapters/src/*"],
+      "@nmj/db/*": ["packages/db/src/*"]
+    }
+  },
+  "include": ["src/**/*", "packages/**/*"],
+  "exclude": ["node_modules", "dist", "src/providers", "packages/*/node_modules"]
+}
