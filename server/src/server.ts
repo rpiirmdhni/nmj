@@ -466,14 +466,116 @@ app.get("/api/health", (_req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
+// ── Gateway Status ────────────────────────────────────────────
+
+app.get("/api/gateway/status", async (_req, res) => {
+  const running = await isGatewayRunning();
+  res.json({
+    running,
+    url: GATEWAY_URL,
+    port: GATEWAY_PORT,
+  });
+});
+
+// ── OpenClaw Gateway Manager ─────────────────────────────────
+
+import { spawn, execSync } from "child_process";
+import { existsSync } from "fs";
+
+const GATEWAY_PORT = process.env.OPENCLAW_GATEWAY_PORT || 18789;
+const GATEWAY_URL = `ws://127.0.0.1:${GATEWAY_PORT}`;
+
+async function isGatewayRunning(): Promise<boolean> {
+  try {
+    const res = await fetch(`http://127.0.0.1:${GATEWAY_PORT}/health`, {
+      signal: AbortSignal.timeout(3000),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+function findOpenClawBinary(): string | null {
+  // Check common locations
+  const candidates = [
+    "openclaw",
+    "/usr/local/bin/openclaw",
+    "/usr/bin/openclaw",
+    `${process.env.HOME}/.nvm/versions/node/*/bin/openclaw`,
+  ];
+  for (const cmd of candidates) {
+    try {
+      execSync(`which ${cmd}`, { stdio: "pipe" });
+      return cmd;
+    } catch {
+      // Try next
+    }
+  }
+  // Check npm global bin
+  try {
+    const npmBin = execSync("npm bin -g", { encoding: "utf-8" }).trim();
+    const path = `${npmBin}/openclaw`;
+    if (existsSync(path)) return path;
+  } catch {
+    // ignore
+  }
+  return null;
+}
+
+async function startGateway(): Promise<boolean> {
+  const binary = findOpenClawBinary();
+  if (!binary) {
+    console.warn("[Gateway] openclaw binary not found — agents using openclaw adapter will not work");
+    return false;
+  }
+
+  console.log(`[Gateway] Starting OpenClaw Gateway on port ${GATEWAY_PORT}...`);
+  try {
+    // Try systemd first
+    execSync("openclaw gateway start", { stdio: "pipe" });
+  } catch {
+    // Fallback: spawn directly
+    spawn(binary, ["gateway", "--port", String(GATEWAY_PORT)], {
+      detached: true,
+      stdio: "ignore",
+    });
+  }
+
+  // Wait for gateway to be ready (max 15s)
+  for (let i = 0; i < 15; i++) {
+    await new Promise((r) => setTimeout(r, 1000));
+    if (await isGatewayRunning()) {
+      console.log(`[Gateway] OpenClaw Gateway ready on port ${GATEWAY_PORT}`);
+      return true;
+    }
+  }
+
+  console.warn("[Gateway] OpenClaw Gateway did not start within 15s — openclaw agents may not work");
+  return false;
+}
+
+async function ensureGateway(): Promise<void> {
+  if (await isGatewayRunning()) {
+    console.log(`[Gateway] OpenClaw Gateway already running on port ${GATEWAY_PORT}`);
+    return;
+  }
+  console.log("[Gateway] OpenClaw Gateway not detected, attempting auto-start...");
+  await startGateway();
+}
+
 // ── Start Server ─────────────────────────────────────────────
 
 const PORT = process.env.PORT || 3001;
 
-server.listen(PORT, () => {
-  console.log(`🚀 NMJ Backend running on http://localhost:${PORT}`);
-  console.log(`   WebSocket: ws://localhost:${PORT}`);
-  console.log(`   REST API:  http://localhost:${PORT}/api`);
+// Ensure gateway is running before accepting connections
+ensureGateway().then(() => {
+  server.listen(PORT, () => {
+    console.log(`🚀 Nineteen Million (AI) Jobs — Backend running on http://localhost:${PORT}`);
+    console.log(`   WebSocket: ws://localhost:${PORT}`);
+    console.log(`   REST API:  http://localhost:${PORT}/api`);
+    console.log(`   Gateway:   ${GATEWAY_URL}`);
+  });
 });
 
 // Graceful shutdown
