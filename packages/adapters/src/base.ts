@@ -1,7 +1,7 @@
 // Base adapter class with common functionality
 
 import { spawn, ChildProcess } from "child_process";
-import { Agent, AgentAdapter, AdapterEnvironmentTestResult, AdapterConfig, AgentAdapterType } from "@nmj/shared/types";
+import { Agent, AgentAdapter, AdapterEnvironmentTestResult, AdapterConfig, AgentAdapterType } from "../../shared/src/types";
 
 export class BaseAdapter implements AgentAdapter {
   type: string = "custom";

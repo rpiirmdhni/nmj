@@ -1,6 +1,6 @@
 // OpenCode adapter — spawns OpenCode CL
 import { BaseAdapter } from "../base";
-import { Agent, AdapterEnvironmentTestResult, AdapterConfig } from "@nmj/shared/types";
+import { Agent, AdapterEnvironmentTestResult, AdapterConfig } from "../../../shared/src/types";
 export class OpenCodeAdapter extends BaseAdapter {  type = "opencode";
   label = "OpenCode";
   description = "OpenCode CLI — multi-provider coding agent";

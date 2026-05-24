@@ -1,7 +1,7 @@
 // Process adapter — executes arbitrary shell command
 
 import { BaseAdapter } from "../base";
-import { Agent, AdapterEnvironmentTestResult, AdapterConfig } from "@nmj/shared/types";
+import { Agent, AdapterEnvironmentTestResult, AdapterConfig } from "../../../shared/src/types";
 
 export class ProcessAdapter extends BaseAdapter {
   type = "process";

@@ -1,6 +1,6 @@
 // HTTP adapter — sends webhooks to external agent service
 import { BaseAdapter } from "../base";
-import { Agent, AdapterEnvironmentTestResult, AdapterConfig } from "@nmj/shared/types";
+import { Agent, AdapterEnvironmentTestResult, AdapterConfig } from "../../../shared/src/types";
 export class HttpAdapter extends BaseAdapter {  type = "http";
   label = "HTTP Webhook";
   description = "Send requests to external agent services via HTTP webhooks";

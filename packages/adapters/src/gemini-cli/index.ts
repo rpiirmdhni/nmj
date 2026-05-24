@@ -1,6 +1,6 @@
 // Gemini CLI adapter — spawns Google Gemini CL
 import { BaseAdapter } from "../base";
-import { Agent, AdapterEnvironmentTestResult, AdapterConfig } from "@nmj/shared/types";
+import { Agent, AdapterEnvironmentTestResult, AdapterConfig } from "../../../shared/src/types";
 export class GeminiCliAdapter extends BaseAdapter {  type = "gemini_cli";
   label = "Gemini CLI";
   description = "Google Gemini CLI — experimental multi-modal agent";

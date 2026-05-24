@@ -12,7 +12,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/toast";
 
-import { Agent, WSMessage, ChatMessagePayload, ChatResponsePayload, TypingPayload } from "@nmj/shared/types";
+import { Agent, WSMessage, ChatMessagePayload, ChatResponsePayload, TypingPayload } from "../../packages/shared/src/types";
 
 interface DisplayMessage {
   id: string;

@@ -1,7 +1,7 @@
 // Claude Code adapter — spawns Claude Code CLI
 
 import { BaseAdapter } from "../base";
-import { Agent, AdapterEnvironmentTestResult, AdapterConfig } from "@nmj/shared/types";
+import { Agent, AdapterEnvironmentTestResult, AdapterConfig } from "../../../shared/src/types";
 
 export class ClaudeCodeAdapter extends BaseAdapter {
   type = "claude_code";

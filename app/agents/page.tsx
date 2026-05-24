@@ -25,7 +25,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useToast } from "@/components/toast";
 
-import { Agent, AgentAdapterType } from "@nmj/shared/types";
+import { Agent, AgentAdapterType } from "../../packages/shared/src/types";
 import { AdapterMeta, AdapterEnvironmentTestResult } from "@/lib/types";
 
 interface AgentMemory {

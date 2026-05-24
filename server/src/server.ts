@@ -2,8 +2,8 @@ import express from "express";
 import cors from "cors";
 import { createServer } from "http";
 import { WebSocketServer, WebSocket } from "ws";
-import { Orchestrator } from "@nmj/db/orchestrator";
-import { WSMessage, ChatMessagePayload, Agent } from "@nmj/shared/types";
+import { Orchestrator } from "../../packages/db/src/orchestrator";
+import { WSMessage, ChatMessagePayload, Agent } from "../../packages/shared/src/types";
 import { v4 as uuidv4 } from "uuid";
 
 const app = express();

@@ -1,6 +1,6 @@
 // Hermes adapter — spawns Hermes CL
 import { BaseAdapter } from "../base";
-import { Agent, AdapterEnvironmentTestResult, AdapterConfig } from "@nmj/shared/types";
+import { Agent, AdapterEnvironmentTestResult, AdapterConfig } from "../../../shared/src/types";
 export class HermesAdapter extends BaseAdapter {  type = "hermes";
   label = "Hermes";
   description = "Hermes AI Agent — custom agent runtime via Hermes CLI";

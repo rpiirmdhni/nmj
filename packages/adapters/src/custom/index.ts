@@ -1,7 +1,7 @@
 // Custom adapter — fallback for user-defined agent type
 
 import { BaseAdapter } from "../base";
-import { Agent, AdapterEnvironmentTestResult, AdapterConfig } from "@nmj/shared/types";
+import { Agent, AdapterEnvironmentTestResult, AdapterConfig } from "../../../shared/src/types";
 
 export class CustomAdapter extends BaseAdapter {
   type = "custom";

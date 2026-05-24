@@ -12,7 +12,7 @@
 // 7. Fetch response via chat.history
 
 import { BaseAdapter } from "../base";
-import { Agent, AdapterEnvironmentTestResult, AdapterConfig } from "@nmj/shared/types";
+import { Agent, AdapterEnvironmentTestResult, AdapterConfig } from "../../../shared/src/types";
 import WebSocket from "ws";
 
 const PROTOCOL_VERSION = 3;

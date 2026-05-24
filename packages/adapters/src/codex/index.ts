@@ -1,6 +1,6 @@
 // Codex adapter — spawns OpenAI Codex CL
 import { BaseAdapter } from "../base";
-import { Agent, AdapterEnvironmentTestResult, AdapterConfig } from "@nmj/shared/types";
+import { Agent, AdapterEnvironmentTestResult, AdapterConfig } from "../../../shared/src/types";
 export class CodexAdapter extends BaseAdapter {  type = "codex";
   label = "Codex";
   description = "OpenAI Codex CLI — stateless coding agent";

@@ -1,6 +1,6 @@
 // Cursor adapter — spawns Cursor agent in background mod
 import { BaseAdapter } from "../base";
-import { Agent, AdapterEnvironmentTestResult, AdapterConfig } from "@nmj/shared/types";
+import { Agent, AdapterEnvironmentTestResult, AdapterConfig } from "../../../shared/src/types";
 export class CursorAdapter extends BaseAdapter {  type = "cursor";
   label = "Cursor";
   description = "Cursor IDE agent — runs in background mode";

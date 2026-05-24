@@ -15,13 +15,13 @@ import {
   ProviderConfig,
   OrgNode,
   RoutingResult,
-} from "@nmj/shared/types";
+} from "../../shared/src/types";
 import {
   executeAdapter,
   executeAdapterStreaming,
   testAdapterEnvironment,
   getAdapter,
-} from "@nmj/adapters/index";
+} from "../../adapters/src/index";
 
 type BroadcastFn = (message: WSMessage) => void;
 
@@ -385,7 +385,7 @@ export class Orchestrator {
   }
 
   getAdapterMeta(): any[] {
-    const { listAdapterMeta } = require("@nmj/adapters/index");
+    const { listAdapterMeta } = require("../../adapters/src/index");
     return listAdapterMeta();
   }
 

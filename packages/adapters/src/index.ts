@@ -1,6 +1,6 @@
 // Adapter registry — manages all agent adapters
 
-import { AgentAdapter, AgentAdapterType, Agent, AdapterEnvironmentTestResult } from "@nmj/shared/types";
+import { AgentAdapter, AgentAdapterType, Agent, AdapterEnvironmentTestResult } from "../../shared/src/types";
 import { ClaudeCodeAdapter } from "./claude-code";
 import { CodexAdapter } from "./codex";
 import { OpenCodeAdapter } from "./opencode";
