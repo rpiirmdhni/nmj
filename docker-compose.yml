@@ -1,0 +1,23 @@
+version: "3.8"
+
+services:
+  nmj-dashboard:
+    build: .
+    ports:
+      - "4000:4000"   # Frontend
+      - "3001:3001"   # Backend + WebSocket
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - NEXT_PUBLIC_API_URL=http://localhost:3001
+      - NEXT_PUBLIC_WS_URL=ws://localhost:3001
+      # Add your API keys here or use .env file
+      # - OPENAI_API_KEY=sk-...
+      # - ANTHROPIC_API_KEY=sk-ant-...
+      # - OPENROUTER_API_KEY=sk-or-...
+    volumes:
+      - nmj-data:/app/backend/data
+    restart: unless-stopped
+
+volumes:
+  nmj-data:
