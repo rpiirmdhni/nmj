@@ -4,6 +4,7 @@
 
 Inspired by [Paperclip](https://github.com/paperclipai/paperclip).
 
+![Version](https://img.shields.io/badge/version-2026.5.0-green.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 
 ## Table of Contents

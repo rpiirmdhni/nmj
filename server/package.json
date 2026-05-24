@@ -1,6 +1,6 @@
 {
   "name": "@nmj/server",
-  "version": "0.1.0",
+  "version": "2026.5.0",
   "private": true,
   "author": "Rafie Restu Ramadhani",
   "main": "src/server.ts",
