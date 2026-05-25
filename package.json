@@ -1,6 +1,6 @@
 {
   "name": "nmj-dashboard",
-  "version": "2026.5.0",
+  "version": "2026.5.1",
   "private": false,
   "license": "MIT",
   "author": "Rafie Restu Ramadhani",
@@ -18,11 +18,13 @@
     "build": "next build",
     "start": "next start -p 4000",
     "lint": "eslint",
-    "server": "cd server && npx tsx src/server.ts",
-    "dev:all": "bash scripts/nmj.sh start",
-    "stop": "bash scripts/nmj.sh stop",
-    "status": "bash scripts/nmj.sh status",
-    "db:seed": "cd server && npx tsx ../../packages/db/src/database.ts"
+    "server": "node scripts/nmj.mjs server",
+    "dev:all": "node scripts/nmj.mjs start",
+    "stop": "node scripts/nmj.mjs stop",
+    "status": "node scripts/nmj.mjs status",
+    "restart": "node scripts/nmj.mjs restart",
+    "db:seed": "node scripts/nmj.mjs db:seed",
+    "db:reset": "node scripts/nmj.mjs db:reset"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",
@@ -42,8 +44,10 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "concurrently": "^9.1.2",
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
+    "kill-port": "^2.0.1",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

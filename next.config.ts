@@ -1,8 +1,11 @@
 import type { NextConfig } from "next";
+import path from "node:path";
 
 const nextConfig: NextConfig = {
   turbopack: {
-    root: "/home/meluna/Documents/Openclaw/nmj-dashboard",
+    // Explicitly set root to this project's directory — avoids Turbopack
+    // mistaking a parent-level package-lock.json as the workspace root.
+    root: path.resolve(__dirname),
   },
   env: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001",
@@ -11,3 +14,4 @@ const nextConfig: NextConfig = {
 };
 
 export default nextConfig;
+

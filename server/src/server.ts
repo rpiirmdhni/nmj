@@ -481,6 +481,8 @@ app.get("/api/gateway/status", async (_req, res) => {
 
 import { spawn, execSync } from "child_process";
 import { existsSync } from "fs";
+import { join } from "path";
+import { homedir } from "os";
 
 const GATEWAY_PORT = process.env.OPENCLAW_GATEWAY_PORT || 18789;
 const GATEWAY_URL = `ws://127.0.0.1:${GATEWAY_PORT}`;
@@ -497,29 +499,58 @@ async function isGatewayRunning(): Promise<boolean> {
 }
 
 function findOpenClawBinary(): string | null {
-  // Check common locations
-  const candidates = [
-    "openclaw",
-    "/usr/local/bin/openclaw",
-    "/usr/bin/openclaw",
-    `${process.env.HOME}/.nvm/versions/node/*/bin/openclaw`,
-  ];
-  for (const cmd of candidates) {
-    try {
-      execSync(`which ${cmd}`, { stdio: "pipe" });
-      return cmd;
-    } catch {
-      // Try next
+  const isWindows = process.platform === "win32";
+  const whichCmd = isWindows ? "where" : "which";
+
+  // 1. Try simple "openclaw" in PATH
+  try {
+    execSync(`${whichCmd} openclaw`, { stdio: "pipe" });
+    return "openclaw";
+  } catch {
+    // Not in PATH
+  }
+
+  // 2. Check platform-specific common locations
+  const candidates: string[] = [];
+
+  if (isWindows) {
+    const appData = process.env.APPDATA || join(homedir(), "AppData", "Roaming");
+    candidates.push(
+      join(appData, "npm", "openclaw.cmd"),
+      join(appData, "npm", "openclaw"),
+      join(homedir(), ".npm-global", "openclaw.cmd"),
+    );
+  } else {
+    candidates.push(
+      "/usr/local/bin/openclaw",
+      "/usr/bin/openclaw",
+      join(homedir(), ".local", "bin", "openclaw"),
+    );
+    // nvm locations
+    const nvmDir = process.env.NVM_DIR || join(homedir(), ".nvm");
+    if (existsSync(nvmDir)) {
+      try {
+        const nodeVersion = execSync("node -v", { encoding: "utf-8" }).trim();
+        const nvmPath = join(nvmDir, "versions", "node", nodeVersion, "bin", "openclaw");
+        candidates.push(nvmPath);
+      } catch { /* ignore */ }
     }
   }
-  // Check npm global bin
+
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) return candidate;
+  }
+
+  // 3. Check npm global bin
   try {
     const npmBin = execSync("npm bin -g", { encoding: "utf-8" }).trim();
-    const path = `${npmBin}/openclaw`;
-    if (existsSync(path)) return path;
+    const ext = isWindows ? ".cmd" : "";
+    const binPath = join(npmBin, `openclaw${ext}`);
+    if (existsSync(binPath)) return binPath;
   } catch {
     // ignore
   }
+
   return null;
 }
 
@@ -532,14 +563,17 @@ async function startGateway(): Promise<boolean> {
 
   console.log(`[Gateway] Starting OpenClaw Gateway on port ${GATEWAY_PORT}...`);
   try {
-    // Try systemd first
-    execSync("openclaw gateway start", { stdio: "pipe" });
-  } catch {
-    // Fallback: spawn directly
-    spawn(binary, ["gateway", "--port", String(GATEWAY_PORT)], {
-      detached: true,
+    const isWindows = process.platform === "win32";
+    // Spawn the gateway process detached
+    const gatewayProc = spawn(binary, ["gateway", "--port", String(GATEWAY_PORT)], {
+      detached: !isWindows, // detached not supported well on Windows
       stdio: "ignore",
+      ...(isWindows ? { shell: true } : {}),
     });
+    gatewayProc.unref();
+  } catch (err) {
+    console.warn(`[Gateway] Failed to spawn gateway: ${err instanceof Error ? err.message : err}`);
+    return false;
   }
 
   // Wait for gateway to be ready (max 15s)

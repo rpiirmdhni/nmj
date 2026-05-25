@@ -14,7 +14,7 @@ export class ClaudeCodeAdapter extends BaseAdapter {
     return this.checkCommandExists(command);
   }
 
-  async execute(agent: Agent, message: string, context?: string): Promise<string> {
+  async execute(agent: Agent, message: string, context?: string, systemPrompt?: string): Promise<string> {
     const config = this.parseConfig(agent);
     const command = config.command || "claude";
     const cwd = config.cwd || process.cwd();
@@ -32,16 +32,24 @@ export class ClaudeCodeAdapter extends BaseAdapter {
     if (model) args.push("--model", model);
     if (effort) args.push("--effort", effort);
     if (dangerouslySkipPermissions) args.push("--dangerously-skip-permissions");
+
+    // Inject system prompt via native --append-system-prompt flag
+    if (systemPrompt) {
+      args.push("--append-system-prompt", systemPrompt);
+    }
+
     const env = this.buildEnv(agent, config, {
       CLAUDE_CODE_RUN_ID: agent.id,
     });
     const fullPrompt = context
       ? `[Context]\n${context}\n\n[Task]\n${message}`
       : message;
-    const result = await this.runCommand(command, [...args, "-"], {
+
+    const result = await this.runCommand(command, args, {
       cwd,
       env,
       timeoutSec,
+      stdin: fullPrompt,
       graceSec: config.graceSec || 20,
     });
     if (result.timedOut) {
@@ -57,7 +65,8 @@ export class ClaudeCodeAdapter extends BaseAdapter {
     agent: Agent,
     message: string,
     context: string | undefined,
-    onChunk: (chunk: string) => void
+    onChunk: (chunk: string) => void,
+    systemPrompt?: string
   ): Promise<string> {
     const config = this.parseConfig(agent);
     const command = config.command || "claude";
@@ -76,6 +85,12 @@ export class ClaudeCodeAdapter extends BaseAdapter {
     if (model) args.push("--model", model);
     if (effort) args.push("--effort", effort);
     if (dangerouslySkipPermissions) args.push("--dangerously-skip-permissions");
+
+    // Inject system prompt via native --append-system-prompt flag
+    if (systemPrompt) {
+      args.push("--append-system-prompt", systemPrompt);
+    }
+
     const env = this.buildEnv(agent, config, {
       CLAUDE_CODE_RUN_ID: agent.id,
     });
@@ -83,10 +98,11 @@ export class ClaudeCodeAdapter extends BaseAdapter {
       ? `[Context]\n${context}\n\n[Task]\n${message}`
       : message;
     let fullText = "";
-    const result = await this.runCommand(command, [...args, "-"], {
+    const result = await this.runCommand(command, args, {
       cwd,
       env,
       timeoutSec,
+      stdin: fullPrompt,
       graceSec: config.graceSec || 20,
       onStdout: (data) => {
         const lines = data.split("\n");

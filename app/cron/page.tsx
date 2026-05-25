@@ -192,7 +192,7 @@ export default function CronPage() {
   };
 
   return (
-    <div className="p-[13px] sm:p-[21px] pl-[55px] lg:pl-[21px]">
+    <div className="p-4 sm:p-6 pl-14 sm:pl-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div>

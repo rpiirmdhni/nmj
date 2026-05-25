@@ -25,6 +25,29 @@ import {
 
 type BroadcastFn = (message: WSMessage) => void;
 
+class StreamBuffer {
+  private buffer: string = "";
+  private onFlush: (chunk: string) => void;
+
+  constructor(onFlush: (chunk: string) => void) {
+    this.onFlush = onFlush;
+  }
+
+  write(chunk: string): void {
+    this.buffer += chunk;
+    if (/\s/.test(this.buffer) || this.buffer.length >= 6) {
+      this.flush();
+    }
+  }
+
+  flush(): void {
+    if (this.buffer) {
+      this.onFlush(this.buffer);
+      this.buffer = "";
+    }
+  }
+}
+
 export class Orchestrator {
   private db;
   private broadcast: BroadcastFn;
@@ -80,7 +103,9 @@ export class Orchestrator {
       try {
         // Create a session for this cron job
         const session = this.getOrCreateSession(job.agent_id);
-        const response = await executeAdapter(agent, job.prompt, undefined);
+        const cronMessages = this.getSessionMessages(session.id, 10);
+        const { systemPrompt, contextBlock } = this.buildAgentContext(agent, cronMessages);
+        const response = await executeAdapter(agent, job.prompt, contextBlock, systemPrompt);
 
         this.db.prepare(`
           INSERT INTO messages (id, session_id, agent_id, sender_type, sender_name, content)
@@ -143,12 +168,24 @@ export class Orchestrator {
 
   /** Get agent by ID */
   private getAgent(id: string): Agent | undefined {
-    return this.db.prepare("SELECT * FROM agents WHERE id = ?").get(id) as Agent | undefined;
+    const agent = this.db.prepare("SELECT * FROM agents WHERE id = ?").get(id) as Agent | undefined;
+    if (agent && agent.reports_to) {
+      const manager = this.db.prepare("SELECT name FROM agents WHERE id = ?").get(agent.reports_to) as { name: string } | undefined;
+      agent.reports_to_name = manager ? manager.name : null;
+    }
+    return agent;
   }
 
   /** Get direct reports of an agent */
   private getDirectReports(agentId: string): Agent[] {
-    return this.db.prepare("SELECT * FROM agents WHERE reports_to = ?").all(agentId) as Agent[];
+    const agents = this.db.prepare("SELECT * FROM agents WHERE reports_to = ?").all(agentId) as Agent[];
+    const manager = this.db.prepare("SELECT name FROM agents WHERE id = ?").get(agentId) as { name: string } | undefined;
+    if (manager) {
+      for (const agent of agents) {
+        agent.reports_to_name = manager.name;
+      }
+    }
+    return agents;
   }
 
   /** Get the manager of an agent */
@@ -311,7 +348,14 @@ export class Orchestrator {
   // ── Agent CRUD ──────────────────────────────────────────────
 
   getAllAgents(): Agent[] {
-    return this.db.prepare("SELECT * FROM agents ORDER BY name").all() as Agent[];
+    const agents = this.db.prepare("SELECT * FROM agents ORDER BY name").all() as Agent[];
+    for (const agent of agents) {
+      if (agent.reports_to) {
+        const manager = this.db.prepare("SELECT name FROM agents WHERE id = ?").get(agent.reports_to) as { name: string } | undefined;
+        agent.reports_to_name = manager ? manager.name : null;
+      }
+    }
+    return agents;
   }
 
   getAgentById(id: string): Agent | undefined {
@@ -416,6 +460,174 @@ export class Orchestrator {
     ).all(sessionId, limit) as Message[];
   }
 
+  // ── Agent Context Builder ───────────────────────────────────
+
+  /**
+   * Builds the full context block for an agent call:
+   *   1. Long-term memories (facts)
+   *   2. Commitments (behavioral rules)
+   *   3. SKILLS.md from agent_files
+   *   4. Org awareness — peers, hierarchy, and tagging rules
+   *   5. Recent conversation history
+   *
+   * Returns { systemPrompt, contextBlock } to be passed separately to adapters.
+   */
+  private buildAgentContext(
+    agent: Agent,
+    sessionMessages: Message[]
+  ): { systemPrompt: string; contextBlock: string } {
+    const parts: string[] = [];
+
+    // 1. Long-term memories
+    const longTermMemories = this.db.prepare(
+      `SELECT content FROM agent_memories
+       WHERE agent_id = ? AND type = 'long_term'
+       ORDER BY importance DESC, created_at DESC LIMIT 20`
+    ).all(agent.id) as { content: string }[];
+    if (longTermMemories.length > 0) {
+      parts.push(`=== LONG-TERM MEMORY ===\n${longTermMemories.map((m) => `- ${m.content}`).join("\n")}`);
+    }
+
+    // 2. Commitments (behavioural rules that always apply)
+    const commitments = this.db.prepare(
+      `SELECT content FROM agent_memories
+       WHERE agent_id = ? AND type = 'commitment'
+       ORDER BY importance DESC, created_at DESC LIMIT 10`
+    ).all(agent.id) as { content: string }[];
+    if (commitments.length > 0) {
+      parts.push(`=== COMMITMENTS ===\n${commitments.map((m) => `- ${m.content}`).join("\n")}`);
+    }
+
+    // 3. Skills from agent_files ("SKILLS.md")
+    const skillsFile = this.db.prepare(
+      `SELECT content FROM agent_files WHERE agent_id = ? AND name = 'SKILLS.md'`
+    ).get(agent.id) as { content: string } | undefined;
+    if (skillsFile?.content?.trim()) {
+      parts.push(`=== SKILLS & CAPABILITIES ===\n${skillsFile.content.trim()}`);
+    }
+
+    // 4. Org awareness — who this agent is, who they work with, and tagging rules
+    const orgBlock = this.buildOrgAwarenessBlock(agent);
+    if (orgBlock) {
+      parts.push(orgBlock);
+    }
+
+    // 5. Conversation history (chronological, last 10)
+    const history = [...sessionMessages]
+      .reverse()
+      .map((m) => {
+        const name = m.sender_type === "user" ? "User" : m.sender_name || "Agent";
+        return `${name}: ${m.content}`;
+      })
+      .join("\n");
+    if (history) {
+      parts.push(`=== CONVERSATION HISTORY ===\n${history}`);
+    }
+
+    return {
+      systemPrompt: agent.system_prompt || "You are a helpful AI agent.",
+      contextBlock: parts.join("\n\n"),
+    };
+  }
+
+  /**
+   * Builds the ORG AWARENESS context block for an agent.
+   * Informs the agent: who they are, who they report to, their direct reports,
+   * the full org tree, same-division peers, and explicit @-tagging routing rules.
+   */
+  private buildOrgAwarenessBlock(agent: Agent): string {
+    const allAgents = this.getAllAgents();
+    if (allAgents.length <= 1) return ""; // Solo agent — no org context needed
+
+    const lines: string[] = [];
+
+    lines.push(`=== ORG AWARENESS ===`);
+    lines.push(`You are ${agent.name} (${agent.role}).`);
+    lines.push(``);
+
+    // ── Position in hierarchy ────────────────────────────────
+    lines.push(`YOUR POSITION IN THE ORGANIZATION:`);
+
+    const manager = agent.reports_to
+      ? allAgents.find((a) => a.id === agent.reports_to)
+      : null;
+
+    if (!manager) {
+      lines.push(`- You are at the TOP of the organization. All agents report (directly or indirectly) to you.`);
+    } else {
+      lines.push(`- You report to: ${manager.name} (${manager.role})`);
+    }
+
+    const directReports = allAgents.filter((a) => a.reports_to === agent.id);
+    if (directReports.length > 0) {
+      lines.push(`- Your direct reports: ${directReports.map((a) => `${a.name} (${a.role})`).join(", ")}`);
+    } else {
+      lines.push(`- You have no direct reports.`);
+    }
+
+    // ── Full org tree ────────────────────────────────────────
+    lines.push(``);
+    lines.push(`FULL ORGANIZATION CHART:`);
+
+    const renderTree = (agentId: string, prefix: string, isLast: boolean): string[] => {
+      const a = allAgents.find((x) => x.id === agentId);
+      if (!a) return [];
+      const marker = prefix === "" ? "" : (isLast ? "\u2514\u2500\u2500 " : "\u251c\u2500\u2500 ");
+      const selfTag = a.id === agent.id ? " \u2190 YOU" : "";
+      const childPrefix = prefix === "" ? "" : (isLast ? "    " : "\u2502   ");
+      const children = allAgents.filter((x) => x.reports_to === agentId);
+      const nodeLines: string[] = [`${prefix}${marker}${a.name} (${a.role})${selfTag}`];
+      children.forEach((child, idx) => {
+        nodeLines.push(...renderTree(child.id, prefix + childPrefix, idx === children.length - 1));
+      });
+      return nodeLines;
+    };
+
+    const roots = allAgents.filter((a) => !a.reports_to);
+    roots.forEach((root) => lines.push(...renderTree(root.id, "", true)));
+
+    // ── Same-division peers ──────────────────────────────────
+    const peers = allAgents.filter(
+      (a) => a.id !== agent.id && a.reports_to === agent.reports_to && a.reports_to !== null
+    );
+    if (peers.length > 0) {
+      lines.push(``);
+      lines.push(`SAME-DIVISION PEERS (direct tagging allowed):`);
+      peers.forEach((p) => lines.push(`- @${p.name} (${p.role})`));
+    }
+
+    // ── Tagging & routing rules ──────────────────────────────
+    lines.push(``);
+    lines.push(`TAGGING & ROUTING RULES:`);
+    lines.push(`- Tag an agent by writing @[Name] in your message to route a task to them.`);
+    lines.push(`- Example: "@Atlas please check the server health"`);
+    if (!manager) {
+      lines.push(`- As the top-level agent, you can tag ANY agent directly.`);
+    } else {
+      lines.push(`- You can tag DIRECTLY: your manager (@${manager.name}) and your direct reports.`);
+      if (peers.length > 0) {
+        lines.push(`- Same-division peers you can tag directly: ${peers.map((p) => `@${p.name}`).join(", ")}.`);
+      }
+      lines.push(`- For agents OUTSIDE your division, tag @${manager.name} first — they will route it up.`);
+    }
+
+    // ── Full agent directory ─────────────────────────────────
+    lines.push(``);
+    lines.push(`ALL AGENTS IN THE SYSTEM:`);
+    allAgents
+      .filter((a) => a.id !== agent.id)
+      .forEach((a) => {
+        const rel = a.reports_to === agent.id
+          ? " [your direct report]"
+          : a.id === agent.reports_to
+          ? " [your manager]"
+          : "";
+        lines.push(`- @${a.name} — ${a.role}${rel}`);
+      });
+
+    return lines.join("\n");
+  }
+
   // ── Inter-Agent Communication (with birokrasi) ─────────────
 
   async sendInterAgentMessage(
@@ -425,10 +637,10 @@ export class Orchestrator {
     originalSessionId: string,
     _depth: number = 0
   ): Promise<string> {
-    // BUG-5: Prevent infinite recursion in inter-agent messaging
-    const MAX_INTER_AGENT_DEPTH = 5;
-    if (_depth > MAX_INTER_AGENT_DEPTH) {
-      console.warn(`[Birokrasi] Max inter-agent recursion depth (${MAX_INTER_AGENT_DEPTH}) reached, stopping chain`);
+    // Prevent infinite recursion in inter-agent messaging
+    const MAX_INTER_AGENT_DEPTH = 2;
+    if (_depth >= MAX_INTER_AGENT_DEPTH) {
+      console.warn(`[Birokrasi] Max inter-agent depth (${MAX_INTER_AGENT_DEPTH}) reached, stopping chain`);
       return "[System: Max inter-agent message chain depth reached]";
     }
 
@@ -454,42 +666,74 @@ export class Orchestrator {
     this.db.prepare(`
       INSERT INTO inter_agent_logs (id, from_agent_id, to_agent_id, session_id, message, status)
       VALUES (@id, @fromId, @toId, @sessionId, @message, 'processing')
-    `).run({ id: logId, fromId: fromAgentId, toId: toAgentId, sessionId: null, message });
+    `).run({ id: logId, fromId: fromAgentId, toId: toAgentId, sessionId: originalSessionId, message });
 
     const targetSession = this.getOrCreateSession(toAgentId);
+    const targetMessages = this.getSessionMessages(targetSession.id, 10);
+    const { systemPrompt, contextBlock } = this.buildAgentContext(toAgent, targetMessages);
 
-    const context = `You received a message from ${fromAgent.name} (${fromAgent.role}).
-
-Original message: "${message}"
-
-Please respond appropriately. If you need help from another agent, tag them with @AgentName. If the task is complete, reply directly.`;
+    // Clear message format so target agent understands who is contacting them and why
+    const interAgentPrompt = `[MESSAGE FROM ${fromAgent.name.toUpperCase()} (${fromAgent.role})]:\n${message}\n\nRespond directly to ${fromAgent.name}. If you need to delegate or escalate to another agent, append exactly one line at the end: [ROUTE: AgentName].`;
+    const streamId = uuidv4();
 
     this.broadcast({
       type: "chat:typing",
-      payload: { sessionId: targetSession.id, agentId: toAgentId, isTyping: true } as TypingPayload,
+      payload: { sessionId: originalSessionId, agentId: toAgentId, isTyping: true } as TypingPayload,
       timestamp: new Date().toISOString(),
     });
 
     try {
-      // Use adapter system to send message
-      const response = await executeAdapter(toAgent, message, context);
+      const streamBuffer = new StreamBuffer((flushedChunk: string) => {
+        this.broadcast({
+          type: "chat:response",
+          payload: {
+            streamId,
+            sessionId: originalSessionId,
+            fromAgentId: toAgentId,
+            fromAgentName: toAgent.name,
+            content: flushedChunk,
+            isInterAgent: true,
+            isDone: false,
+          } as ChatResponsePayload,
+          timestamp: new Date().toISOString(),
+        });
+      });
+
+      // Stream so the response appears live in the chat UI
+      const response = await executeAdapterStreaming(
+        toAgent,
+        interAgentPrompt,
+        contextBlock,
+        (chunk: string) => {
+          streamBuffer.write(chunk);
+        },
+        systemPrompt
+      );
+      streamBuffer.flush();
+
+      // Strip [ROUTE: ...] tag from inter-agent response before storing/broadcasting
+      const routeMatch = response.match(/\[ROUTE:\s*([^\]]+)\]/i);
+      const delegateToName = routeMatch ? routeMatch[1].trim() : null;
+      const cleanResponse = response.replace(/\[ROUTE:\s*[^\]]+\]\s*/gi, "").trimEnd();
 
       this.db.prepare(
         "UPDATE inter_agent_logs SET response = @response, status = 'completed', completed_at = datetime('now') WHERE id = @id"
-      ).run({ response, id: logId });
+      ).run({ response: cleanResponse, id: logId });
 
+      // Persist incoming message in target session
       this.db.prepare(`
         INSERT INTO messages (id, session_id, agent_id, sender_type, sender_name, content, tagged_agent_ids)
-        VALUES (@id, @sessionId, @agentId, 'agent', @senderName, @content, @taggedIds)
+        VALUES (@id, @sessionId, @agentId, 'user', @senderName, @content, @taggedIds)
       `).run({
         id: uuidv4(),
         sessionId: targetSession.id,
         agentId: toAgentId,
         senderName: fromAgent.name,
-        content: message,
+        content: interAgentPrompt,
         taggedIds: JSON.stringify([toAgentId]),
       });
 
+      // Persist target agent's clean response
       this.db.prepare(`
         INSERT INTO messages (id, session_id, agent_id, sender_type, sender_name, content, tagged_agent_ids)
         VALUES (@id, @sessionId, @agentId, 'agent', @senderName, @content, @taggedIds)
@@ -498,8 +742,23 @@ Please respond appropriately. If you need help from another agent, tag them with
         sessionId: targetSession.id,
         agentId: toAgentId,
         senderName: toAgent.name,
-        content: response,
+        content: cleanResponse,
         taggedIds: null,
+      });
+
+      // Final broadcast with clean response
+      this.broadcast({
+        type: "chat:response",
+        payload: {
+          streamId,
+          sessionId: originalSessionId,
+          fromAgentId: toAgentId,
+          fromAgentName: toAgent.name,
+          content: cleanResponse,
+          isInterAgent: true,
+          isDone: true,
+        } as ChatResponsePayload,
+        timestamp: new Date().toISOString(),
       });
 
       this.broadcast({
@@ -508,21 +767,18 @@ Please respond appropriately. If you need help from another agent, tag them with
         timestamp: new Date().toISOString(),
       });
 
-      // Check if response tags another agent (chain continuation)
-      const tagMatch = response.match(/@(\w+)/g);
-      if (tagMatch) {
-        for (const tag of tagMatch) {
-          const taggedName = tag.slice(1);
-          const taggedAgent = (this.db.prepare("SELECT * FROM agents ORDER BY name").all() as Agent[]).find(
-            (a) => a.name.toLowerCase() === taggedName.toLowerCase()
-          );
-          if (taggedAgent && taggedAgent.id !== toAgentId) {
-            await this.sendInterAgentMessage(toAgentId, taggedAgent.id, response, targetSession.id, _depth + 1);
-          }
+      // Chain: agent-initiated delegation via [ROUTE: AgentName] (only first, only if not self)
+      if (delegateToName && _depth + 1 < MAX_INTER_AGENT_DEPTH) {
+        const allAgents = this.getAllAgents();
+        const next = allAgents.find(
+          (a) => a.name.toLowerCase() === delegateToName.toLowerCase()
+        );
+        if (next && next.id !== toAgentId && next.id !== fromAgentId) {
+          await this.sendInterAgentMessage(toAgentId, next.id, cleanResponse, originalSessionId, _depth + 1);
         }
       }
 
-      return response;
+      return cleanResponse;
     } catch (error) {
       this.db.prepare(
         "UPDATE inter_agent_logs SET status = 'failed', completed_at = datetime('now') WHERE id = @id"
@@ -580,40 +836,50 @@ Please respond appropriately. If you need help from another agent, tag them with
 
     try {
       const recentMessages = this.getSessionMessages(session.id, 10);
-      const context = recentMessages
-        .reverse()
-        .map((m) => {
-          const name = m.sender_type === "user" ? "User" : m.sender_name || "Agent";
-          return `${name}: ${m.content}`;
-        })
-        .join("\n");
+      const { systemPrompt, contextBlock } = this.buildAgentContext(agent, recentMessages);
 
-      // Use adapter system
+      // Unique stream ID so client can match chunks in multi-agent scenarios
+      const streamId = uuidv4();
+
+      const streamBuffer = new StreamBuffer((flushedChunk: string) => {
+        this.broadcast({
+          type: "chat:response",
+          payload: {
+            streamId,
+            sessionId: session.id,
+            fromAgentId: agentId,
+            content: flushedChunk,
+            isInterAgent: false,
+            isDone: false,
+          } as ChatResponsePayload,
+          timestamp: new Date().toISOString(),
+        });
+      });
+
+      // Use adapter system with full personality + memory + skills context
       const response = await executeAdapterStreaming(
         agent,
         content,
-        context,
+        contextBlock,
         (chunk: string) => {
-          this.broadcast({
-            type: "chat:response",
-            payload: {
-              sessionId,
-              fromAgentId: agentId,
-              content: chunk,
-              isInterAgent: false,
-            } as ChatResponsePayload,
-            timestamp: new Date().toISOString(),
-          });
-        }
+          streamBuffer.write(chunk);
+        },
+        systemPrompt
       );
+      streamBuffer.flush();
 
       this.broadcast({
         type: "chat:typing",
-        payload: { sessionId, agentId, isTyping: false } as TypingPayload,
+        payload: { sessionId: session.id, agentId, isTyping: false } as TypingPayload,
         timestamp: new Date().toISOString(),
       });
 
-      // Store agent response
+      // Strip [ROUTE: ...] tag from response before storing/broadcasting
+      const routeMatch = response.match(/\[ROUTE:\s*([^\]]+)\]/i);
+      const delegateToName = routeMatch ? routeMatch[1].trim() : null;
+      const cleanResponse = response.replace(/\[ROUTE:\s*[^\]]+\]\s*/gi, "").trimEnd();
+
+      // Store agent response (clean, without routing tag)
       const agentMsgId = uuidv4();
       this.db.prepare(`
         INSERT INTO messages (id, session_id, agent_id, sender_type, sender_name, content, tagged_agent_ids)
@@ -623,39 +889,43 @@ Please respond appropriately. If you need help from another agent, tag them with
         sessionId: session.id,
         agentId,
         senderName: agent.name,
-        content: response,
+        content: cleanResponse,
         taggedIds: null,
       });
 
-      // Check if agent tagged another agent in response
-      const tagMatches = response.match(/@(\w+)/g);
-      if (tagMatches) {
-        for (const tag of tagMatches) {
-          const taggedName = tag.slice(1);
-          const taggedAgent = (this.db.prepare("SELECT * FROM agents ORDER BY name").all() as Agent[]).find(
-            (a) => a.name.toLowerCase() === taggedName.toLowerCase()
-          );
-          if (taggedAgent) {
-            await this.sendInterAgentMessage(
-              agentId,
-              taggedAgent.id,
-              response,
-              sessionId
-            );
-          }
-        }
-      }
-
+      // Final broadcast with clean response
       this.broadcast({
         type: "chat:response",
         payload: {
-          sessionId,
+          streamId,
+          sessionId: session.id,
           fromAgentId: agentId,
-          content: response,
+          content: cleanResponse,
           isInterAgent: false,
+          isDone: true,
         } as ChatResponsePayload,
         timestamp: new Date().toISOString(),
       });
+
+      // Fix 3a: Orchestrator-controlled sequential routing for remaining user-tagged agents
+      // This runs REGARDLESS of model output — guarantees all tagged agents get called in order
+      const remainingTaggedAgents = (taggedAgentIds || []).filter((id: string) => id !== agentId);
+      let lastContext = cleanResponse;
+      for (const nextAgentId of remainingTaggedAgents) {
+        lastContext = await this.sendInterAgentMessage(agentId, nextAgentId, lastContext, session.id);
+      }
+
+      // Fix 3b: Agent-initiated delegation via [ROUTE: AgentName] in response
+      // Only runs if no user-tagged agents remain (avoid double-routing)
+      if (delegateToName && remainingTaggedAgents.length === 0) {
+        const allAgents = this.getAllAgents();
+        const delegateAgent = allAgents.find(
+          (a) => a.name.toLowerCase() === delegateToName.toLowerCase()
+        );
+        if (delegateAgent && delegateAgent.id !== agentId) {
+          await this.sendInterAgentMessage(agentId, delegateAgent.id, cleanResponse, session.id);
+        }
+      }
     } catch (error) {
       this.broadcast({
         type: "chat:typing",

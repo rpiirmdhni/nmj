@@ -27,6 +27,7 @@ export interface Agent {
   is_active: number;
   // Org hierarchy
   reports_to: string | null; // parent agent ID, null for CEO Assistant
+  reports_to_name?: string | null; // supervisor's display name resolved from ID
   // Legacy fields (kept for backward compat during migration)
   model: string;
   provider: string;
@@ -142,12 +143,13 @@ export interface AgentAdapter {
   type: string;
   label: string;
   description: string;
-  execute(agent: Agent, message: string, context?: string): Promise<string>;
+  execute(agent: Agent, message: string, context?: string, systemPrompt?: string): Promise<string>;
   executeStreaming(
     agent: Agent,
     message: string,
     context: string | undefined,
-    onChunk: (chunk: string) => void
+    onChunk: (chunk: string) => void,
+    systemPrompt?: string
   ): Promise<string>;
   testEnvironment(agent: Agent): Promise<AdapterEnvironmentTestResult>;
   isAvailable(agent: Agent): Promise<boolean>;
@@ -197,11 +199,14 @@ export interface ChatMessagePayload {
 }
 
 export interface ChatResponsePayload {
+  streamId: string;     // Unique per response sequence — used to match streaming chunks
   sessionId: string;
   fromAgentId: string;
+  fromAgentName?: string; // Display name for inter-agent messages
   toAgentId?: string;
   content: string;
   isInterAgent: boolean;
+  isDone?: boolean;     // true on the final broadcast after streaming completes
 }
 
 export interface TypingPayload {

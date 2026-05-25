@@ -23,8 +23,8 @@ export function ThemeToggle() {
   // Prevent hydration mismatch
   if (!mounted) {
     return (
-      <button className="cursor-pointer rounded-[var(--radius-md)] p-2 hover:bg-muted transition-colors">
-        <Sun className="h-[16px] w-[16px] opacity-0" />
+      <button className="cursor-pointer rounded-md p-2 hover:bg-muted transition-colors">
+        <Sun className="h-4 w-4" />
       </button>
     );
   }
@@ -36,10 +36,10 @@ export function ThemeToggle() {
     <div className="relative">
       <button
         onClick={() => setOpen(!open)}
-        className="cursor-pointer rounded-[var(--radius-md)] p-2 hover:bg-muted active:bg-muted/80 transition-colors flex items-center gap-[8px]"
+        className="cursor-pointer rounded-md p-2 hover:bg-muted active:bg-muted/80 transition-colors flex items-center gap-2"
         title={`Theme: ${currentTheme.label}`}
       >
-        <CurrentIcon className="h-[16px] w-[16px]" />
+        <CurrentIcon className="h-4 w-4" />
       </button>
 
       {open && (
@@ -48,7 +48,7 @@ export function ThemeToggle() {
             className="fixed inset-0 z-40"
             onClick={() => setOpen(false)}
           />
-          <div className="absolute right-0 bottom-full mb-[8px] z-50 rounded-[var(--radius-lg)] border bg-card shadow-lg p-[4px] min-w-[160px]">
+          <div className="absolute right-0 bottom-full mb-2 z-50 rounded-lg border bg-card shadow-lg p-1 min-w-[160px]">
             {THEME_OPTIONS.map((option) => {
               const Icon = option.icon;
               const isActive = theme === option.value;
@@ -60,15 +60,15 @@ export function ThemeToggle() {
                     setOpen(false);
                   }}
                   className={cn(
-                    "cursor-pointer w-full flex items-center gap-[10px] rounded-[var(--radius-md)] px-[13px] py-[10px] text-sm transition-colors",
+                    "cursor-pointer w-full flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors",
                     isActive
                       ? "bg-primary/10 text-primary font-medium"
                       : "text-muted-foreground hover:bg-muted hover:text-foreground"
                   )}
                 >
-                  <Icon className="h-[16px] w-[16px]" />
+                  <Icon className="h-4 w-4" />
                   <span className="flex-1 text-left">{option.label}</span>
-                  {isActive && <Check className="h-[16px] w-[16px]" />}
+                  {isActive && <Check className="h-4 w-4" />}
                 </button>
               );
             })}

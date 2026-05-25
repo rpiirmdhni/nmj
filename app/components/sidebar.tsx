@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import njmPackage from '../../package.json';
 import { usePathname } from "next/navigation";
 import {
   MessageSquare,
@@ -74,6 +75,9 @@ const groupIcons: Record<string, React.ComponentType<{ className?: string }>> = 
 
 export function Sidebar() {
   const pathname = usePathname();
+
+  // Fullscreen pages — no sidebar
+  if (pathname === "/onboarding") return null;
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
@@ -81,6 +85,10 @@ export function Sidebar() {
   );
   const touchStartX = useRef(0);
   const touchStartY = useRef(0);
+
+  // Fullscreen routes — no sidebar
+  const FULLSCREEN_ROUTES = ["/onboarding"];
+  if (FULLSCREEN_ROUTES.includes(pathname)) return null;
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX;
@@ -117,9 +125,9 @@ export function Sidebar() {
       {/* Mobile hamburger */}
       <button
         onClick={() => setMobileOpen(true)}
-        className="cursor-pointer fixed top-[13px] left-[13px] z-[60] lg:hidden rounded-[var(--radius-md)] p-[10px] bg-card border shadow-md hover:bg-muted active:bg-muted/80 transition-colors"
+        className="cursor-pointer fixed top-3 left-3 z-[60] lg:hidden rounded-md p-2 bg-card border shadow-md hover:bg-muted active:bg-muted/80 transition-colors"
       >
-        <Menu className="h-[21px] w-[21px]" />
+        <Menu className="h-5 w-5" />
       </button>
 
       {/* Mobile overlay */}
@@ -136,38 +144,41 @@ export function Sidebar() {
         onTouchEnd={handleTouchEnd}
         className={cn(
           "flex flex-col border-r bg-card transition-all duration-300 h-dvh shrink-0",
-          collapsed ? "lg:w-[68px]" : "lg:w-[280px]",
+          collapsed ? "lg:w-[var(--sidebar-collapsed)]" : "lg:w-[var(--sidebar-width)]",
           "fixed lg:relative z-[55]",
-          mobileOpen ? "w-[280px] translate-x-0" : "w-[280px] -translate-x-full lg:translate-x-0"
+          mobileOpen ? "w-[var(--sidebar-width)] translate-x-0" : "w-[var(--sidebar-width)] -translate-x-full lg:translate-x-0"
         )}
       >
         {/* Header */}
-        <div className="flex h-[68px] items-center justify-between border-b px-[21px] shrink-0">
+        <div className={cn(
+          "flex h-16 items-center border-b px-5 shrink-0 transition-all duration-300",
+          collapsed ? "justify-center" : "justify-between"
+        )}>
           {!collapsed && (
-            <span className="text-lg font-bold tracking-tight">NMJ</span>
+            <div className="text-lg tracking-tight">Nineteen Million <span className="font-bold">Jobs</span></div>
           )}
-          <div className="flex items-center gap-[8px]">
+          <div className="flex items-center gap-2">
             <button
               onClick={() => setMobileOpen(false)}
-              className="cursor-pointer rounded-[var(--radius-md)] p-2 hover:bg-muted active:bg-muted/80 transition-colors lg:hidden"
+              className="cursor-pointer rounded-md p-2 hover:bg-muted active:bg-muted/80 transition-colors lg:hidden"
             >
-              <X className="h-[21px] w-[21px]" />
+              <X className="h-5 w-5" />
             </button>
             <button
               onClick={() => setCollapsed(!collapsed)}
-              className="cursor-pointer rounded-[var(--radius-md)] p-2 hover:bg-muted active:bg-muted/80 transition-colors hidden lg:flex"
+              className="cursor-pointer rounded-md p-2 hover:bg-muted active:bg-muted/80 transition-colors hidden lg:flex"
             >
               {collapsed ? (
-                <ChevronRight className="h-[21px] w-[21px]" />
+                <ChevronRight className="h-5 w-5" />
               ) : (
-                <ChevronLeft className="h-[21px] w-[21px]" />
+                <ChevronLeft className="h-5 w-5" />
               )}
             </button>
           </div>
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto space-y-[4px] p-[13px] min-h-0">
+        <nav className="flex-1 overflow-y-auto space-y-1 p-3 min-h-0">
           {menuGroups.map((group) => {
             const isExpanded = expandedGroups.has(group.key);
             const groupActive = isGroupActive(group);
@@ -180,19 +191,19 @@ export function Sidebar() {
                     href={group.items[0].href}
                     title={group.label}
                     className={cn(
-                      "cursor-pointer w-full flex items-center justify-center rounded-[var(--radius-md)] px-[13px] py-[13px] transition-colors",
+                      "cursor-pointer w-full flex items-center justify-center rounded-md p-3 transition-colors",
                       groupActive
                         ? "bg-primary text-primary-foreground"
                         : "text-muted-foreground hover:bg-muted hover:text-foreground active:bg-muted/80"
                     )}
                   >
-                    <GroupIcon className="h-[21px] w-[21px]" />
+                    <GroupIcon className="h-5 w-5" />
                   </Link>
                 ) : (
                   <button
                     onClick={() => toggleGroup(group.key)}
                     className={cn(
-                      "cursor-pointer w-full flex items-center gap-[13px] rounded-[var(--radius-md)] px-[13px] py-[13px] text-sm font-medium transition-colors",
+                      "cursor-pointer w-full flex items-center gap-3 rounded-md px-3 py-3 text-sm font-medium transition-colors",
                       groupActive
                         ? "text-foreground"
                         : "text-muted-foreground hover:bg-muted hover:text-foreground active:bg-muted/80"
@@ -209,7 +220,7 @@ export function Sidebar() {
                 )}
 
                 {!collapsed && isExpanded && (
-                  <div className="ml-[13px] mt-[4px] space-y-[4px] border-l-2 border-border pl-[13px]">
+                  <div className="ml-3 mt-1 space-y-1 border-l-2 border-border pl-3">
                     {group.items.map((item) => {
                       const isActive = pathname === item.href;
                       return (
@@ -218,13 +229,13 @@ export function Sidebar() {
                           href={item.href}
                           onClick={() => setMobileOpen(false)}
                           className={cn(
-                            "cursor-pointer flex items-center gap-[13px] rounded-[var(--radius-md)] px-[13px] py-[10px] text-sm transition-colors",
+                            "cursor-pointer flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
                             isActive
                               ? "bg-primary text-primary-foreground font-medium"
                               : "text-muted-foreground hover:bg-muted hover:text-foreground active:bg-muted/80"
                           )}
                         >
-                          <item.icon className="h-[16px] w-[16px] shrink-0" />
+                          <item.icon className="h-4 w-4 shrink-0" />
                           <span>{item.label}</span>
                         </Link>
                       );
@@ -237,21 +248,18 @@ export function Sidebar() {
         </nav>
 
         {/* Footer */}
-        <div className="border-t p-[13px] shrink-0">
+        <div className="border-t p-3 shrink-0">
           <div
             className={cn(
-              "flex items-center gap-[13px] rounded-[var(--radius-md)] px-[13px] py-[10px]",
+              "flex items-center gap-3 rounded-md px-3 py-2",
               collapsed && "justify-center"
             )}
           >
-            <div className="h-[34px] w-[34px] shrink-0 rounded-full bg-primary/10 flex items-center justify-center">
-              <span className="text-sm font-semibold text-primary">A</span>
-            </div>
             {!collapsed && (
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium truncate">Admin</p>
+                <p className="text-sm font-medium truncate">Nineteen Million Jobs</p>
                 <p className="text-xs text-muted-foreground truncate">
-                  Open Source
+                  {njmPackage.version}
                 </p>
               </div>
             )}

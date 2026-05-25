@@ -328,12 +328,12 @@ interface ThemeConfig {
 }
 
 function loadThemeConfig(): ThemeConfig {
-  if (typeof window === "undefined") return { radius: 0.625, primaryColor: "#1a1a1a", presetName: null };
+  if (typeof window === "undefined") return { radius: 0.375, primaryColor: "#1a1a1a", presetName: null };
   try {
     const stored = localStorage.getItem(THEME_STORAGE_KEY);
     if (stored) return JSON.parse(stored);
   } catch { /* ignore */ }
-  return { radius: 0.625, primaryColor: "#1a1a1a", presetName: null };
+  return { radius: 0.375, primaryColor: "#1a1a1a", presetName: null };
 }
 
 function saveThemeConfig(config: ThemeConfig) {
@@ -345,7 +345,7 @@ function saveThemeConfig(config: ThemeConfig) {
 
 export default function AppearancePage() {
   const { theme: currentTheme } = useTheme();
-  const [radius, setRadius] = useState(0.625);
+  const [radius, setRadius] = useState(0.375);
   const [primaryColor, setPrimaryColor] = useState("#1a1a1a");
   const [importJson, setImportJson] = useState("");
   const [showImport, setShowImport] = useState(false);
@@ -446,9 +446,9 @@ export default function AppearancePage() {
 
   const handleReset = () => {
     applyTheme(PRESET_THEMES[0]);
-    setRadius(0.625);
-    document.documentElement.style.setProperty("--radius", "0.625rem");
-    saveThemeConfig({ radius: 0.625, primaryColor: "#1a1a1a", presetName: "Zinc" });
+    setRadius(0.375);
+    document.documentElement.style.setProperty("--radius", "0.375rem");
+    saveThemeConfig({ radius: 0.375, primaryColor: "#1a1a1a", presetName: "Zinc" });
     toast("Theme reset to default.", "info");
   };
 
@@ -473,39 +473,39 @@ export default function AppearancePage() {
   };
 
   return (
-    <div className="p-[13px] sm:p-[21px] pl-[55px] lg:pl-[21px] max-w-[890px]">
+    <div className="p-4 sm:p-6 pl-14 sm:pl-6 max-w-[890px]">
       {/* Header */}
-      <div className="flex items-center justify-between mb-[34px]">
+      <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Appearance</h1>
-          <p className="text-muted-foreground mt-[4px] text-sm">
+          <p className="text-muted-foreground mt-1 text-sm">
             Customize border radius, primary color, and import themes.
           </p>
         </div>
         <button
           onClick={handleReset}
-          className="cursor-pointer flex items-center gap-[8px] rounded-[var(--radius-md)] border px-[21px] py-[10px] text-sm font-medium hover:bg-muted active:bg-muted/80 transition-colors"
+          className="cursor-pointer flex items-center gap-2 rounded-md border px-5 py-2 text-sm font-medium hover:bg-muted active:bg-muted/80 transition-colors"
         >
-          <RotateCcw className="h-[16px] w-[16px]" />
+          <RotateCcw className="h-4 w-4" />
           Reset
         </button>
       </div>
 
       {/* Quick Theme Toggle */}
-      <div className="rounded-[var(--radius-lg)] border bg-card p-[21px] mb-[21px]">
-        <h2 className="font-semibold mb-[13px] flex items-center gap-[8px]">
-          <Palette className="h-[16px] w-[16px]" />
+      <div className="rounded-lg border bg-card p-5 mb-5">
+        <h2 className="font-semibold mb-3 flex items-center gap-2">
+          <Palette className="h-4 w-4" />
           Quick Theme
         </h2>
-        <div className="flex items-center gap-[13px]">
+        <div className="flex items-center gap-3">
           <button
             onClick={() => document.documentElement.classList.remove("dark")}
             className={cn(
-              "cursor-pointer flex items-center gap-[8px] rounded-[var(--radius-md)] px-[13px] py-[10px] text-sm transition-colors",
+              "cursor-pointer flex items-center gap-2 rounded-md px-3.5 py-2 text-sm transition-colors",
               currentTheme !== "dark" ? "bg-primary text-primary-foreground" : "border hover:bg-muted"
             )}
           >
-            <Sun className="h-[16px] w-[16px]" />
+            <Sun className="h-4 w-4" />
             Light
           </button>
           <button
@@ -513,20 +513,20 @@ export default function AppearancePage() {
               if (typeof window !== "undefined") document.documentElement.classList.add("dark");
             }}
             className={cn(
-              "cursor-pointer flex items-center gap-[8px] rounded-[var(--radius-md)] px-[13px] py-[10px] text-sm transition-colors",
+              "cursor-pointer flex items-center gap-2 rounded-md px-3.5 py-2 text-sm transition-colors",
               currentTheme === "dark" ? "bg-primary text-primary-foreground" : "border hover:bg-muted"
             )}
           >
-            <Moon className="h-[16px] w-[16px]" />
+            <Moon className="h-4 w-4" />
             Dark
           </button>
         </div>
       </div>
 
       {/* Preset Themes */}
-      <div className="rounded-[var(--radius-lg)] border bg-card p-[21px] mb-[21px]">
-        <h2 className="font-semibold mb-[13px]">Preset Themes</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-[13px]">
+      <div className="rounded-lg border bg-card p-5 mb-5">
+        <h2 className="font-semibold mb-3">Preset Themes</h2>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
           {PRESET_THEMES.map((theme) => {
             const isDark = typeof window !== "undefined" && document.documentElement.classList.contains("dark");
             const primaryColor = isDark ? theme.dark.primary : theme.light.primary;
@@ -537,24 +537,24 @@ export default function AppearancePage() {
                 key={theme.name}
                 onClick={() => handlePresetClick(theme)}
                 className={cn(
-                  "cursor-pointer rounded-[var(--radius-md)] border p-[13px] text-left transition-all",
+                  "cursor-pointer rounded-md border p-3 text-left transition-all",
                   isActive
                     ? "border-primary ring-2 ring-primary/20"
                     : "border-border hover:border-primary/30"
                 )}
               >
-                <div className="flex items-center gap-[8px] mb-[8px]">
+                <div className="flex items-center gap-2 mb-2">
                   <div
-                    className="h-[21px] w-[21px] rounded-full border"
+                    className="h-5 w-5 rounded-full border"
                     style={{ backgroundColor: hex }}
                   />
                   <span className="text-sm font-medium">{theme.name}</span>
                 </div>
-                <div className="flex gap-[4px]">
+                <div className="flex gap-1">
                   {[theme.light.background, theme.light.foreground, theme.light.muted].map((c, i) => (
                     <div
                       key={i}
-                      className="h-[13px] w-[13px] rounded-full border"
+                      className="h-3 w-3 rounded-full border"
                       style={{ backgroundColor: oklchToHex(c) }}
                     />
                   ))}
@@ -566,34 +566,34 @@ export default function AppearancePage() {
       </div>
 
       {/* Primary Color */}
-      <div className="rounded-[var(--radius-lg)] border bg-card p-[21px] mb-[21px]">
-        <h2 className="font-semibold mb-[13px]">Primary Color</h2>
-        <div className="flex items-center gap-[13px]">
+      <div className="rounded-lg border bg-card p-5 mb-5">
+        <h2 className="font-semibold mb-3">Primary Color</h2>
+        <div className="flex items-center gap-3">
           <input
             type="color"
             value={primaryColor}
             onChange={(e) => setPrimaryColor(e.target.value)}
-            className="h-[48px] w-[48px] rounded-[var(--radius-md)] border cursor-pointer"
+            className="h-12 w-12 rounded-md border cursor-pointer"
           />
           <input
             type="text"
             value={primaryColor}
             onChange={(e) => setPrimaryColor(e.target.value)}
-            className="rounded-[var(--radius-md)] border bg-background px-[13px] py-[10px] text-sm font-mono w-[130px] focus:outline-none focus:ring-2 focus:ring-primary/20"
+            className="rounded-md border bg-background px-3 py-2 text-sm font-mono w-[130px] focus:outline-none focus:ring-2 focus:ring-primary/20"
           />
         </div>
       </div>
 
       {/* Border Radius */}
-      <div className="rounded-[var(--radius-lg)] border bg-card p-[21px] mb-[21px]">
-        <h2 className="font-semibold mb-[13px] flex items-center gap-[8px]">
+      <div className="rounded-lg border bg-card p-5 mb-5">
+        <h2 className="font-semibold mb-3 flex items-center gap-2">
           <div
-            className="h-[21px] w-[21px] rounded border-2 border-foreground/30"
+            className="h-5 w-5 rounded border-2 border-foreground/30"
             style={{ borderRadius: `${radius}rem` }}
           />
           Border Radius
         </h2>
-        <div className="space-y-[13px]">
+        <div className="space-y-3">
           <input
             type="range"
             min="0"
@@ -608,13 +608,13 @@ export default function AppearancePage() {
             <span className="font-medium text-foreground">{radius.toFixed(3)}rem</span>
             <span>1.5</span>
           </div>
-          <div className="flex gap-[13px]">
-            {[0.375, 0.625, 1, 1.625].map((r) => (
+          <div className="flex gap-3">
+            {[0.125, 0.375, 0.5, 0.75].map((r) => (
               <button
                 key={r}
                 onClick={() => setRadius(r)}
                 className={cn(
-                  "cursor-pointer flex-1 rounded-[var(--radius-md)] border py-[8px] text-xs font-medium transition-colors",
+                  "cursor-pointer flex-1 rounded-md border py-2 text-xs font-medium transition-colors",
                   Math.abs(radius - r) < 0.01
                     ? "border-primary bg-primary/10 text-primary"
                     : "border-border hover:border-primary/30"
@@ -628,39 +628,39 @@ export default function AppearancePage() {
       </div>
 
       {/* Import / Export */}
-      <div className="rounded-[var(--radius-lg)] border bg-card p-[21px]">
-        <h2 className="font-semibold mb-[13px]">Import / Export</h2>
-        <div className="flex flex-wrap gap-[13px]">
+      <div className="rounded-lg border bg-card p-5">
+        <h2 className="font-semibold mb-3">Import / Export</h2>
+        <div className="flex flex-wrap gap-3">
           <button
             onClick={exportTheme}
-            className="cursor-pointer flex items-center gap-[8px] rounded-[var(--radius-md)] border px-[13px] py-[10px] text-sm font-medium hover:bg-muted transition-colors"
+            className="cursor-pointer flex items-center gap-2 rounded-md border px-3.5 py-2 text-sm font-medium hover:bg-muted transition-colors"
           >
-            {copied ? <Check className="h-[16px] w-[16px] text-green-500" /> : <Copy className="h-[16px] w-[16px]" />}
+            {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
             {copied ? "Copied!" : "Copy Theme"}
           </button>
           <button
             onClick={() => setShowImport(!showImport)}
-            className="cursor-pointer flex items-center gap-[8px] rounded-[var(--radius-md)] border px-[13px] py-[10px] text-sm font-medium hover:bg-muted transition-colors"
+            className="cursor-pointer flex items-center gap-2 rounded-md border px-3.5 py-2 text-sm font-medium hover:bg-muted transition-colors"
           >
-            <Upload className="h-[16px] w-[16px]" />
+            <Upload className="h-4 w-4" />
             Import Theme
           </button>
         </div>
 
         {showImport && (
-          <div className="mt-[13px] space-y-[13px]">
+          <div className="mt-3 space-y-3">
             <textarea
               value={importJson}
               onChange={(e) => setImportJson(e.target.value)}
               placeholder='{"primary": "oklch(0.546 0.245 262.881)", ...}'
               rows={4}
-              className="w-full rounded-[var(--radius-md)] border bg-background px-[13px] py-[10px] text-xs font-mono focus:outline-none focus:ring-2 focus:ring-primary/20"
+              className="w-full rounded-md border bg-background px-3 py-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-primary/20"
             />
             <button
               onClick={handleImportTheme}
-              className="cursor-pointer flex items-center gap-[8px] rounded-[var(--radius-md)] bg-primary px-[13px] py-[10px] text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+              className="cursor-pointer flex items-center gap-2 rounded-md bg-primary px-3.5 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
             >
-              <Download className="h-[16px] w-[16px]" />
+              <Download className="h-4 w-4" />
               Apply Imported Theme
             </button>
           </div>

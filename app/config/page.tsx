@@ -225,7 +225,7 @@ export default function ConfigPage() {
   };
 
   return (
-    <div className="p-[13px] sm:p-[21px] pl-[55px] lg:pl-[21px] max-w-3xl">
+    <div className="p-4 sm:p-6 pl-14 sm:pl-6 max-w-3xl">
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>

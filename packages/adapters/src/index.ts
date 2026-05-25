@@ -60,26 +60,28 @@ export function unregisterAdapter(type: AgentAdapterType): boolean {
 export async function executeAdapter(
   agent: Agent,
   message: string,
-  context?: string
+  context?: string,
+  systemPrompt?: string
 ): Promise<string> {
   const adapter = getAdapter(agent.adapter_type);
   if (!adapter) {
     throw new Error(`No adapter registered for type: ${agent.adapter_type}`);
   }
-  return adapter.execute(agent, message, context);
+  return adapter.execute(agent, message, context, systemPrompt);
 }
 
 export async function executeAdapterStreaming(
   agent: Agent,
   message: string,
   context: string | undefined,
-  onChunk: (chunk: string) => void
+  onChunk: (chunk: string) => void,
+  systemPrompt?: string
 ): Promise<string> {
   const adapter = getAdapter(agent.adapter_type);
   if (!adapter) {
     throw new Error(`No adapter registered for type: ${agent.adapter_type}`);
   }
-  return adapter.executeStreaming(agent, message, context, onChunk);
+  return adapter.executeStreaming(agent, message, context, onChunk, systemPrompt);
 }
 
 export async function testAdapterEnvironment(

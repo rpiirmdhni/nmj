@@ -32,47 +32,134 @@ const USER = { id: "user", name: "User", role: "You", avatar: "U", color: "bg-pr
 
 // ── Helpers ───────────────────────────────────────────────────
 
-function renderMessageText(text: string, taggedIds: string[], agents: Agent[]) {
-  if (!taggedIds.length) return text;
-
+function parseMarkdown(text: string, agents: Agent[]): React.ReactNode[] {
   const parts: React.ReactNode[] = [];
-  const mentionRegex = /@(\w+)/g;
+  const codeBlockRegex = /```(\w*)\n([\s\S]*?)```/g;
+  
   let lastIndex = 0;
   let match;
-  let key = 0;
-
-  while ((match = mentionRegex.exec(text)) !== null) {
+  let blockKey = 0;
+  
+  while ((match = codeBlockRegex.exec(text)) !== null) {
     if (match.index > lastIndex) {
-      parts.push(text.slice(lastIndex, match.index));
+      const inlineText = text.slice(lastIndex, match.index);
+      parts.push(...parseInlineMarkdown(inlineText, agents, `inline-${blockKey++}`));
     }
+    
+    const lang = match[1];
+    const code = match[2];
+    parts.push(
+      <pre key={`code-${blockKey++}`} className="bg-zinc-950 text-zinc-100 p-3 rounded-lg overflow-x-auto text-xs my-2 font-mono border border-zinc-800">
+        {lang && <div className="text-[10px] text-zinc-400 font-semibold mb-1 uppercase">{lang}</div>}
+        <code>{code}</code>
+      </pre>
+    );
+    
+    lastIndex = codeBlockRegex.lastIndex;
+  }
+  
+  if (lastIndex < text.length) {
+    parts.push(...parseInlineMarkdown(text.slice(lastIndex), agents, `inline-${blockKey++}`));
+  }
+  
+  return parts;
+}
 
-    const name = match[1];
-    const target = agents.find((a) => a.name.toLowerCase() === name.toLowerCase());
-
-    if (target) {
-      parts.push(
-        <span
-          key={key++}
-          className={cn(
-            "inline-flex items-center px-1.5 py-0.5 rounded-md text-xs font-semibold border mx-0.5",
-            target.tag_color
-          )}
-        >
-          @{target.name}
-        </span>
+function parseInlineMarkdown(text: string, agents: Agent[], baseKey: string): React.ReactNode[] {
+  const lines = text.split("\n");
+  const parsedLines: React.ReactNode[] = [];
+  
+  lines.forEach((line, lineIdx) => {
+    const listMatch = /^(?:-|\*|\u2022)\s+(.*)/.exec(line);
+    const numListMatch = /^(\d+)\.\s+(.*)/.exec(line);
+    
+    let lineContent: React.ReactNode;
+    let isBullet = false;
+    let isNumList = false;
+    let listNum = "";
+    
+    if (listMatch) {
+      isBullet = true;
+      lineContent = renderRichText(listMatch[1], agents);
+    } else if (numListMatch) {
+      isNumList = true;
+      listNum = numListMatch[1];
+      lineContent = renderRichText(numListMatch[2], agents);
+    } else {
+      lineContent = renderRichText(line, agents);
+    }
+    
+    if (isBullet) {
+      parsedLines.push(
+        <div key={`${baseKey}-l-${lineIdx}`} className="flex items-start gap-2 pl-3 my-1">
+          <span className="text-muted-foreground mt-1.5 h-1.5 w-1.5 rounded-full bg-muted-foreground/70 shrink-0" />
+          <span className="text-sm">{lineContent}</span>
+        </div>
+      );
+    } else if (isNumList) {
+      parsedLines.push(
+        <div key={`${baseKey}-l-${lineIdx}`} className="flex items-start gap-2 pl-3 my-1">
+          <span className="text-xs font-semibold text-muted-foreground mt-0.5 shrink-0">{listNum}.</span>
+          <span className="text-sm">{lineContent}</span>
+        </div>
       );
     } else {
-      parts.push(match[0]);
+      parsedLines.push(
+        <div key={`${baseKey}-l-${lineIdx}`} className="text-sm min-h-[1.25rem] leading-relaxed break-words whitespace-pre-wrap">
+          {lineContent}
+        </div>
+      );
     }
+  });
+  
+  return parsedLines;
+}
 
-    lastIndex = match.index + match[0].length;
-  }
+function renderRichText(text: string, agents: Agent[]): React.ReactNode {
+  if (!text) return "";
+  const tokenRegex = /(@\w+|\*\*[^*]+\*\*|`[^`]+`)/g;
+  const parts = text.split(tokenRegex);
+  
+  return (
+    <>
+      {parts.map((part, idx) => {
+        if (part.startsWith("@")) {
+          const name = part.slice(1);
+          const target = agents.find((a) => a.name.toLowerCase() === name.toLowerCase());
+          if (target) {
+            return (
+              <span
+                key={idx}
+                className={cn(
+                  "inline-flex items-center px-1.5 py-0.5 rounded-md text-[11px] font-semibold border mx-0.5 align-middle select-none",
+                  target.tag_color
+                )}
+              >
+                @{target.name}
+              </span>
+            );
+          }
+          return part;
+        }
+        
+        if (part.startsWith("**") && part.endsWith("**")) {
+          const boldText = part.slice(2, -2);
+          return <strong key={idx} className="font-semibold text-foreground">{boldText}</strong>;
+        }
+        
+        if (part.startsWith("`") && part.endsWith("`")) {
+          const codeText = part.slice(1, -1);
+          return <code key={idx} className="bg-muted px-1.5 py-0.5 rounded font-mono text-xs border align-middle">{codeText}</code>;
+        }
+        
+        return part;
+      })}
+    </>
+  );
+}
 
-  if (lastIndex < text.length) {
-    parts.push(text.slice(lastIndex));
-  }
-
-  return <>{parts}</>;
+function renderMessageText(text: string, taggedIds: string[], agents: Agent[]) {
+  return <>{parseMarkdown(text, agents)}</>;
 }
 
 // ── Component ─────────────────────────────────────────────────
@@ -89,6 +176,7 @@ export default function ChatPage() {
   const [wsConnected, setWsConnected] = useState(false);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const messagesRef = useRef<DisplayMessage[]>([]);
+  const agentsRef = useRef<Agent[]>([]);
 
   const wsRef = useRef<WebSocket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -97,6 +185,11 @@ export default function ChatPage() {
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
+
+  // Keep agentsRef in sync for access in WS callbacks to avoid stale closures
+  useEffect(() => {
+    agentsRef.current = agents;
+  }, [agents]);
 
   // Fetch messages for current session on reconnect
   const fetchSessionMessages = useCallback(async (sessionId: string) => {
@@ -209,23 +302,42 @@ export default function ChatPage() {
   // ── WebSocket Message Handler ──────────────────────────────
 
   const handleWSMessage = useCallback((msg: WSMessage) => {
+    const currentAgents = agentsRef.current;
     switch (msg.type) {
       case "chat:response": {
         const payload = msg.payload as ChatResponsePayload;
-        const agent = agents.find((a) => a.id === payload.fromAgentId);
+        const agent = currentAgents.find((a) => a.id === payload.fromAgentId);
 
-        // Check if this agent was already typing (streaming complete)
-        setTypingAgents((prev) => {
-          const next = new Set(prev);
-          next.delete(payload.fromAgentId);
-          return next;
-        });
+        // If this is the final broadcast (isDone=true), replace the streaming
+        // message with the full authoritative content from the server
+        if (payload.isDone) {
+          setTypingAgents((prev) => {
+            const next = new Set(prev);
+            next.delete(payload.fromAgentId);
+            return next;
+          });
+          setMessages((prev) => {
+            const existingIdx = prev.findIndex(
+              (m) => m.id === `stream-${payload.streamId}`
+            );
+            if (existingIdx >= 0) {
+              const updated = [...prev];
+              updated[existingIdx] = {
+                ...updated[existingIdx],
+                content: payload.content,
+                id: `msg-${Date.now()}`,
+              };
+              return updated;
+            }
+            return prev;
+          });
+          break;
+        }
 
-        // For streaming, we accumulate chunks
+        // Streaming chunk — accumulate by streamId
         setMessages((prev) => {
-          // Check if we already have a streaming message from this agent
           const existingIdx = prev.findIndex(
-            (m) => m.agentId === payload.fromAgentId && m.sender === "agent" && !m.isInterAgent
+            (m) => m.id === `stream-${payload.streamId}`
           );
 
           if (existingIdx >= 0) {
@@ -237,11 +349,11 @@ export default function ChatPage() {
             };
             return updated;
           } else {
-            // New message
+            // New streaming message
             return [
               ...prev,
               {
-                id: `msg-${Date.now()}-${Math.random()}`,
+                id: `stream-${payload.streamId}`,
                 content: payload.content,
                 sender: "agent",
                 agentId: payload.fromAgentId,
@@ -251,7 +363,7 @@ export default function ChatPage() {
                 taggedIds: [],
                 isInterAgent: payload.isInterAgent,
                 fromAgentName: payload.toAgentId
-                  ? agents.find((a) => a.id === payload.toAgentId)?.name
+                  ? currentAgents.find((a) => a.id === payload.toAgentId)?.name
                   : undefined,
                 time: new Date().toLocaleTimeString([], {
                   hour: "2-digit",
@@ -289,7 +401,7 @@ export default function ChatPage() {
         break;
       }
     }
-  }, [agents, toast]);
+  }, [toast]);
 
   // ── Send Message ────────────────────────────────────────────
 
@@ -435,20 +547,20 @@ export default function ChatPage() {
   return (
     <div className="flex-1 flex flex-col h-dvh">
       {/* Header */}
-      <div className="flex items-center justify-between border-b px-[21px] py-[13px] bg-card shrink-0 gap-[13px]">
-        <div className="min-w-0 pl-[55px] lg:pl-0">
-          <div className="flex items-center gap-[8px]">
+      <div className="flex items-center justify-between border-b px-5 py-3 bg-card shrink-0 gap-3">
+        <div className="min-w-0 pl-14 lg:pl-0">
+          <div className="flex items-center gap-2">
             <h2 className="text-base sm:text-lg font-semibold">Chat</h2>
             <span
               className={cn(
-                "h-[8px] w-[8px] rounded-full",
+                "h-2 w-2 rounded-full",
                 wsConnected ? "bg-green-500" : "bg-red-500"
               )}
               title={wsConnected ? "Connected" : "Disconnected"}
             />
           </div>
           <p className="text-xs text-muted-foreground">
-            {agents.length} AI Agents • Type @ to tag
+            {agents.length} AI Agents
           </p>
         </div>
         <div className="flex items-center -space-x-2 shrink-0">
@@ -457,7 +569,7 @@ export default function ChatPage() {
               key={agent.id}
               title={agent.name}
               className={cn(
-                "cursor-pointer h-[34px] w-[34px] rounded-full flex items-center justify-center border-2 border-card",
+                "cursor-pointer h-8 w-8 rounded-full flex items-center justify-center border-2 border-card",
                 agent.color
               )}
             >
@@ -465,7 +577,7 @@ export default function ChatPage() {
             </div>
           ))}
           {agents.length > 4 && (
-            <div className="cursor-pointer h-[34px] w-[34px] rounded-full flex items-center justify-center border-2 border-card bg-muted text-xs font-medium">
+            <div className="cursor-pointer h-8 w-8 rounded-full flex items-center justify-center border-2 border-card bg-muted text-xs font-medium">
               +{agents.length - 4}
             </div>
           )}
@@ -473,12 +585,12 @@ export default function ChatPage() {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-auto p-[13px] sm:p-[21px] space-y-[13px] min-h-0">
+      <div className="flex-1 overflow-auto p-4 sm:p-5 space-y-3 min-h-0">
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-center">
-            <Bot className="h-[55px] w-[55px] text-muted-foreground mb-[13px]" />
+            <Bot className="h-14 w-14 text-muted-foreground mb-3" />
             <p className="text-muted-foreground text-sm">No messages yet.</p>
-            <p className="text-muted-foreground text-xs mt-[4px]">
+            <p className="text-muted-foreground text-xs mt-1">
               Start by typing a message or tag an agent with @
             </p>
           </div>
@@ -489,12 +601,12 @@ export default function ChatPage() {
             return (
               <div key={msg.id} className="flex justify-end">
                 <div className="max-w-[85%] sm:max-w-[70%]">
-                  <div className="bg-primary text-primary-foreground rounded-[var(--radius-lg)] px-[13px] sm:px-[21px] py-[10px] sm:py-[13px]">
-                    <p className="text-sm whitespace-pre-wrap break-words">
+                  <div className="bg-primary text-primary-foreground rounded-lg px-3 sm:px-4 py-2 sm:py-2.5">
+                    <div className="text-sm break-words flex flex-col gap-1.5">
                       {renderMessageText(msg.content, msg.taggedIds, agents)}
-                    </p>
+                    </div>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-[4px] text-right">
+                  <p className="text-xs text-muted-foreground mt-1 text-right">
                     {msg.time}
                   </p>
                 </div>
@@ -509,24 +621,24 @@ export default function ChatPage() {
             <div key={msg.id} className="flex justify-start">
               <div
                 className={cn(
-                  "h-[34px] w-[34px] rounded-full flex items-center justify-center mr-[8px] mt-[4px] shrink-0",
-                  agent?.color || "bg-muted"
+                  "h-8 w-8 rounded-full flex items-center justify-center mr-2 mt-1 shrink-0",
+                  agent?.color || msg.agentColor || "bg-muted"
                 )}
               >
-                <Bot className="h-[16px] w-[16px]" />
+                <Bot className="h-4 w-4" />
               </div>
               <div className="max-w-[85%] sm:max-w-[70%] min-w-0">
-                <div className="flex items-center gap-[8px] mb-[4px] flex-wrap">
+                <div className="flex items-center gap-2 mb-1 flex-wrap">
                   <span
                     className={cn(
                       "text-xs font-semibold",
-                      agent?.color.split(" ")[1] || "text-muted-foreground"
+                      (agent?.color || msg.agentColor || "bg-muted text-muted-foreground").split(" ")[1] || "text-muted-foreground"
                     )}
                   >
-                    {msg.agentName || "Unknown"}
+                    {agent?.name || msg.agentName || "Unknown"}
                   </span>
                   <span className="text-xs text-muted-foreground">
-                    {msg.agentRole}
+                    {agent?.role || msg.agentRole}
                   </span>
                   {isInterAgent && msg.fromAgentName && (
                     <span className="text-xs text-muted-foreground bg-muted px-[8px] py-[2px] rounded">
@@ -540,9 +652,9 @@ export default function ChatPage() {
                     isInterAgent ? "bg-muted/70 border border-border" : "bg-muted"
                   )}
                 >
-                  <p className="text-sm whitespace-pre-wrap break-words">
+                  <div className="text-sm break-words flex flex-col gap-1.5">
                     {renderMessageText(msg.content, msg.taggedIds, agents)}
-                  </p>
+                  </div>
                 </div>
                 <p className="text-[10px] text-muted-foreground mt-1">{msg.time}</p>
               </div>
@@ -657,12 +769,11 @@ export default function ChatPage() {
           </div>
         )}
 
-        <div className="flex items-end gap-[8px] sm:gap-[10px]">
-          <button className="cursor-pointer rounded-[var(--radius-md)] p-[8px] sm:p-2 hover:bg-muted active:bg-muted/80 transition-colors shrink-0">
-            <Paperclip className="h-[16px] w-[16px] sm:h-[21px] sm:w-[21px] text-muted-foreground" />
+        <div className="flex items-center gap-2 sm:gap-2.5">
+          <button className="cursor-pointer rounded-md p-2 hover:bg-muted active:bg-muted/80 transition-colors shrink-0">
+            <Paperclip className="h-4 w-4 text-muted-foreground" />
           </button>
-          <div className="flex-1 relative">
-            <textarea
+          <textarea
               ref={inputRef}
               value={input}
               onChange={(e) => handleInputChange(e.target.value)}
@@ -674,18 +785,14 @@ export default function ChatPage() {
               }
               disabled={!wsConnected}
               rows={1}
-              className="w-full resize-none rounded-[var(--radius-lg)] border bg-background px-[13px] sm:px-[21px] py-[10px] sm:py-[13px] text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 pr-[34px] sm:pr-[40px] disabled:opacity-50"
+              className="w-full resize-none rounded-lg border bg-background px-4 py-2 h-max text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 pr-8 sm:pr-10 disabled:opacity-50"
             />
-            <button className="cursor-pointer absolute right-[8px] top-1/2 -translate-y-1/2 p-[4px] hover:bg-muted rounded transition-colors">
-              <Smile className="h-[16px] w-[16px] text-muted-foreground" />
-            </button>
-          </div>
           <button
             onClick={sendMessage}
             disabled={!input.trim() || !wsConnected}
-            className="cursor-pointer rounded-[var(--radius-lg)] bg-primary p-[10px] sm:p-[13px] text-primary-foreground hover:bg-primary/90 active:bg-primary/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+            className="cursor-pointer rounded-lg bg-primary p-2 text-primary-foreground hover:bg-primary/90 active:bg-primary/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
           >
-            <Send className="h-[16px] w-[16px] sm:h-[21px] sm:w-[21px]" />
+            <Send className="h-4 w-4" />
           </button>
         </div>
       </div>

@@ -170,53 +170,8 @@ db.exec(`
 `);
 
 // ── Seed Data ────────────────────────────────────────────────
-
-// Default adapter config templates
-const defaultAdapterConfig = JSON.stringify({
-  command: "",
-  cwd: process.cwd(),
-  env: {},
-  timeoutSec: 300,
-  graceSec: 20,
-  maxTurnsPerRun: 100,
-  dangerouslySkipPermissions: false,
-});
-
-const openclawAdapterConfig = JSON.stringify({
-  url: "ws://127.0.0.1:18789",
-  authToken: process.env.OPENCLAW_GATEWAY_TOKEN || "",
-  timeoutSec: 120,
-  agentId: "main",
-});
-
-// Seed agents — single CEO Assistant for open source seed
-const agents = [
-  {
-    id: "agent-ceo-assistant",
-    name: "Luna",
-    role: "CEO Assistant",
-    avatar: "L",
-    color: "bg-violet-500/10 text-violet-500",
-    tag_color: "bg-violet-500/15 text-violet-600 border-violet-500/30",
-    adapter_type: "openclaw",
-    adapter_config: openclawAdapterConfig,
-    system_prompt: "You are Luna, the CEO Assistant. You are the highest-ranking AI agent in the company, reporting directly to the Founder & CEO (the human user).\n\nYour role:\n- Coordinate all divisions and their heads\n- Monitor agent performance and workload\n- Route cross-division communication through proper channels\n- Help with strategic decisions and planning\n- You can communicate with any agent directly, but you should encourage proper birokrasi (bureaucracy) — agents within the same division can chat freely, but cross-division requests should go through division heads first.\n\nCommunication rules:\n- Agents in the same division can chat directly with each other\n- Cross-division communication must go through division heads → you (CEO Assistant) → target division head → target agent\n- You are the router for all cross-division communication\n\nBe professional, efficient, and strategic. Keep responses concise and actionable.",
-    reports_to: null,
-  },
-];
-
-const insertAgent = db.prepare(`
-  INSERT OR IGNORE INTO agents (id, name, role, avatar, color, tag_color, adapter_type, adapter_config, system_prompt, reports_to)
-  VALUES (@id, @name, @role, @avatar, @color, @tag_color, @adapter_type, @adapter_config, @system_prompt, @reports_to)
-`);
-
-const insertMany = db.transaction((agentsList: typeof agents) => {
-  for (const agent of agentsList) {
-    insertAgent.run(agent);
-  }
-});
-
-insertMany(agents);
+// No agents seeded — fresh install goes through onboarding flow.
+// Users create their first agent (CEO Assistant) via /onboarding.
 
 // Seed default settings
 const insertSetting = db.prepare(`
@@ -238,38 +193,10 @@ insertFile.run({ id: "root-contracts", name: "contracts", type: "folder", path: 
 insertFile.run({ id: "root-releases", name: "releases", type: "folder", path: "/releases" });
 insertFile.run({ id: "root-marketing", name: "marketing-assets", type: "folder", path: "/marketing-assets" });
 
-// Seed agent workspace files for CEO Assistant
-const insertAgentFile = db.prepare(`
-  INSERT OR IGNORE INTO agent_files (id, agent_id, name, content) VALUES (@id, @agentId, @name, @content)
-`);
-
-const agentWorkspaceFiles = [
-  {
-    agentId: "agent-ceo-assistant",
-    name: "MEMORY.md",
-    content: "# Luna's Memory\n\n## About the User\n- User is the Founder & CEO (human, outside agent hierarchy)\n- Prefers Indonesian + English communication\n- Values efficiency and direct communication\n- Company: Meluna (Music distribution, rights management, publishing)\n- Tech stack: Laravel, PHP, Cloudflare Workers, APIs\n- Current project: NMJ Dashboard (AI Agent Management)\n\n## Org Structure\n- CEO Assistant (Luna) = top-level AI agent\n- Divisions: Engineering, Design, Marketing\n- Agents within same division can chat freely\n- Cross-division communication must go through division heads\n\n## Learned Preferences\n- Keep responses concise and practical\n- Focus on implementation over theory\n- Use casual Indonesian + English tech slang\n",
-  },
-  {
-    agentId: "agent-ceo-assistant",
-    name: "SOUL.md",
-    content: "# Luna's Personality\n\nYou are Luna, the CEO Assistant. You are:\n- Professional and efficient\n- Strategic thinker with vision\n- Direct and concise communicator\n- Proactive in coordinating teams\n- Bilingual: Indonesian + English\n\n## Communication Style\n- Keep responses short and actionable\n- Use bullet points for clarity\n- Avoid unnecessary jargon\n- Be warm but professional\n\n## Role\n- You are the highest-ranking AI agent\n- The Founder & CEO (human) is above you\n- You coordinate all divisions\n- You enforce birokrasi rules for inter-agent communication\n",
-  },
-];
-
-for (const file of agentWorkspaceFiles) {
-  insertAgentFile.run({
-    id: `${file.agentId}-${file.name.replace(".", "-")}`,
-    agentId: file.agentId,
-    name: file.name,
-    content: file.content,
-  });
-}
-
 console.log("✅ Database seeded successfully");
-console.log(`   Agents: ${agents.length}`);
+console.log(`   Agents: 0 (create your first agent via onboarding)`);
 console.log(`   Settings: 4`);
 console.log(`   Root folders: 4`);
-console.log(`   Agent workspace files: ${agentWorkspaceFiles.length}`);
 
 // NOTE: Intentionally NOT calling db.close() here.
 // The Orchestrator uses the same shared db instance.
